@@ -1,4 +1,4 @@
-// import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 import { useForm } from "@tanstack/react-form"
 import { toast } from "sonner"
@@ -43,17 +43,18 @@ export function InsertForm({ onSuccess, onCancel }: InsertFormProps) {
 			onSubmit: createPlayerSchema,
 		},
 		onSubmit: async ({ value }) => {
-			// const { data, error } = await supabase.from("players").insert({
-			// 	gameID: value.gameID,
-			// 	name: value.name,
-			// 	raid: value.raid,
-			// 	reason: value.reason,
-			// })
+			const { data, error } = await supabase.from("players").insert({
+				gameID: value.gameID,
+				name: value.name,
+				raid: value.raid,
+				reason: value.reason,
+				cuid: localStorage.getItem("GBFBanListCUID") || "",
+			})
 
-			// if (error) {
-			// 	toast.error(`Error submitting player: ${error.message}`)
-			// 	return
-			// }
+			if (error) {
+				toast.error(`Error submitting player: ${error.message}`)
+				return
+			}
 
 			toast.success("Player submitted successfully!")
 			onSuccess()

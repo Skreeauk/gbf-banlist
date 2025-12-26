@@ -1,20 +1,31 @@
 import { PlayerSchema } from "@/config/schema"
 
-interface StoredPlayer extends PlayerSchema {
-	cached_at: number
-}
-
 export class PlayerDatabase {
-	private dbName: string = "RaidTrackerDB"
+	private dbName: string = "GBFBanListDB"
 	private storeName: string = "players"
 	private db: IDBDatabase | null = null
 	private version: number = 1
+	private initPromise: Promise<IDBDatabase> | null = null
 
 	async init(): Promise<IDBDatabase> {
-		return new Promise((resolve, reject) => {
+		// Return cached DB if already open
+		if (this.db) {
+			return this.db
+		}
+
+		// Return pending promise if init is already in progress
+		if (this.initPromise) {
+			return this.initPromise
+		}
+
+		this.initPromise = new Promise((resolve, reject) => {
 			const request = indexedDB.open(this.dbName, this.version)
 
-			request.onerror = () => reject(request.error)
+			request.onerror = () => {
+				console.log("IndexedDB error:", request.error?.message)
+				this.initPromise = null
+				reject(request.error)
+			}
 
 			request.onsuccess = () => {
 				this.db = request.result
@@ -25,19 +36,15 @@ export class PlayerDatabase {
 				const db = (event.target as IDBOpenDBRequest).result
 
 				if (!db.objectStoreNames.contains(this.storeName)) {
-					const store = db.createObjectStore(this.storeName, {
+					db.createObjectStore(this.storeName, {
 						keyPath: "id",
 						autoIncrement: false,
 					})
-
-					store.createIndex("name", "name", { unique: false })
-					store.createIndex("raid", "raid", { unique: false })
-					store.createIndex("created_at_ms", "_created_at_ms", { unique: false })
-					store.createIndex("last_updated_ms", "_last_updated_ms", { unique: false })
-					store.createIndex("cached_at", "_cached_at", { unique: false })
 				}
 			}
 		})
+
+		return this.initPromise
 	}
 
 	async storeAllPlayers(players: PlayerSchema[]): Promise<number> {
@@ -45,7 +52,7 @@ export class PlayerDatabase {
 
 		return new Promise((resolve, reject) => {
 			if (!this.db) {
-				reject(new Error("Database not initialized"))
+				reject(new Error("Indexed DB not initialized"))
 				return
 			}
 
@@ -54,17 +61,19 @@ export class PlayerDatabase {
 
 			store.clear()
 
-			const now = Date.now()
 			players.forEach((player) => {
-				const storedPlayer: StoredPlayer = {
-					...player,
-					cached_at: now,
-				}
-				store.put(storedPlayer)
+				store.put(player)
 			})
 
-			transaction.oncomplete = () => resolve(players.length)
-			transaction.onerror = () => reject(transaction.error)
+			transaction.oncomplete = () => {
+				console.log("All players stored successfully")
+				resolve(players.length)
+			}
+
+			transaction.onerror = () => {
+				console.log("Transaction error (storeAllPlayers):", transaction.error?.message)
+				reject(transaction.error)
+			}
 		})
 	}
 
@@ -73,7 +82,7 @@ export class PlayerDatabase {
 
 		return new Promise((resolve, reject) => {
 			if (!this.db) {
-				reject(new Error("Database not initialized"))
+				reject(new Error("Indexed DB not initialized"))
 				return
 			}
 
@@ -82,8 +91,7 @@ export class PlayerDatabase {
 			const request = store.getAll()
 
 			request.onsuccess = () => {
-				const players = request.result.map((storedPlayer: StoredPlayer) => {
-					const { cached_at, ...player } = storedPlayer
+				const players = request.result.map((player) => {
 					return {
 						...player,
 					}
@@ -95,36 +103,7 @@ export class PlayerDatabase {
 		})
 	}
 
-	async isCacheFresh(maxAgeMs: number = 3600000): Promise<boolean> {
-		await this.init()
-
-		return new Promise((resolve, reject) => {
-			if (!this.db) {
-				reject(new Error("Database not initialized"))
-				return
-			}
-
-			const transaction = this.db.transaction([this.storeName], "readonly")
-			const store = transaction.objectStore(this.storeName)
-			const index = store.index("cached_at")
-			const request = index.getAll()
-
-			request.onsuccess = () => {
-				if (request.result.length === 0) {
-					resolve(false)
-					return
-				}
-
-				const oldestCache = Math.min(...request.result.map((p: StoredPlayer) => p.cached_at))
-				const cacheAge = Date.now() - oldestCache
-				resolve(cacheAge < maxAgeMs)
-			}
-
-			request.onerror = () => reject(request.error)
-		})
-	}
-
-	async clearCache(): Promise<void> {
+	async clearData(): Promise<void> {
 		await this.init()
 
 		return new Promise((resolve, reject) => {
@@ -137,48 +116,19 @@ export class PlayerDatabase {
 			const store = transaction.objectStore(this.storeName)
 			const request = store.clear()
 
-			request.onsuccess = () => resolve()
+			request.onsuccess = () => {
+				resolve()
+			}
+
 			request.onerror = () => reject(request.error)
 		})
 	}
 
-	async getCacheStats(): Promise<{ count: number; lastUpdated: string | null }> {
-		await this.init()
-
-		return new Promise((resolve, reject) => {
-			if (!this.db) {
-				reject(new Error("Database not initialized"))
-				return
-			}
-
-			const transaction = this.db.transaction([this.storeName], "readonly")
-			const store = transaction.objectStore(this.storeName)
-			const countRequest = store.count()
-			const cacheTimeRequest = store.index("cached_at").getAll()
-
-			Promise.all([
-				new Promise<number>((res, rej) => {
-					countRequest.onsuccess = () => res(countRequest.result)
-					countRequest.onerror = () => rej(countRequest.error)
-				}),
-				new Promise<StoredPlayer[]>((res, rej) => {
-					cacheTimeRequest.onsuccess = () => res(cacheTimeRequest.result)
-					cacheTimeRequest.onerror = () => rej(cacheTimeRequest.error)
-				}),
-			])
-				.then(([count, players]) => {
-					if (players.length === 0) {
-						resolve({ count, lastUpdated: null })
-						return
-					}
-
-					const latestCache = Math.max(...players.map((p) => p.cached_at))
-					resolve({
-						count,
-						lastUpdated: new Date(latestCache).toISOString(),
-					})
-				})
-				.catch(reject)
-		})
+	close(): void {
+		if (this.db) {
+			this.db.close()
+			this.db = null
+			this.initPromise = null
+		}
 	}
 }

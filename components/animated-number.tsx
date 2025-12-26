@@ -1,7 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
 import { AnimatedNumber } from "./ui/animated-number"
-import { number } from "zod"
 
 interface AnimatedNumberBasicProps {
 	number?: number
@@ -12,7 +11,7 @@ export function AnimatedNumberBasic({ number }: AnimatedNumberBasicProps) {
 
 	useEffect(() => {
 		setValue(number || 0)
-	}, [])
+	}, [number])
 
 	return (
 		<AnimatedNumber

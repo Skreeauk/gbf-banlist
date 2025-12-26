@@ -1,113 +1,64 @@
-import { useState, useEffect, useCallback } from "react"
+"use client"
+
+import { useMemo, useEffect } from "react"
 import { PlayerSchema } from "@/config/schema"
-import { CacheStatus } from "@/config/types"
 import { PlayerDatabase } from "@/lib/indexedDb"
-import { queryLimiter } from "@/lib/queryLimiter"
+import { localStorageDB } from "@/lib/localStorageDB"
 import { supabase } from "@/lib/supabase"
 
 export const usePlayerStorage = () => {
-	const [players, setPlayers] = useState<PlayerSchema[]>([])
-	const [loading, setLoading] = useState<boolean>(true)
-	const [error, setError] = useState<string | null>(null)
-	const [cacheStatus, setCacheStatus] = useState<CacheStatus>({
-		isFresh: false,
-		count: 0,
-		lastUpdated: null,
-	})
+	const db = useMemo(() => new PlayerDatabase(), [])
 
-	const db = new PlayerDatabase()
-
-	const loadFromCache = useCallback(async (): Promise<PlayerSchema[] | null> => {
-		try {
-			const cachedPlayers = await db.getAllPlayers()
-			const isFresh = await db.isCacheFresh()
-			const stats = await db.getCacheStats()
-
-			setPlayers(cachedPlayers)
-			setCacheStatus({
-				isFresh,
-				count: stats.count,
-				lastUpdated: stats.lastUpdated,
-			})
-
-			return cachedPlayers
-		} catch (err) {
-			console.warn("Cache load failed:", err)
-			return null
+	useEffect(() => {
+		return () => {
+			// Cleanup: close database connection when component unmounts
+			db.close()
 		}
 	}, [db])
 
-	const refreshFromServer = useCallback(async (): Promise<PlayerSchema[]> => {
-		const canQuery = queryLimiter.canQuery()
-		if (canQuery !== true) {
-			throw new Error(`Rate limit: 1 query/hour. Try again in ${canQuery.timeLeft} minutes.`)
-		}
+	const loadFromIndexedDB = async (): Promise<PlayerSchema[] | null> => {
+		try {
+			const cachedPlayers = await db.getAllPlayers()
 
-		setLoading(true)
-		setError(null)
+			return cachedPlayers
+		} catch (err) {
+			console.warn("IndexedDB load failed:", err)
+			return null
+		}
+	}
+
+	const loadFromSupabase = async (): Promise<PlayerSchema[]> => {
+		const canQuery = localStorageDB.canQuery()
+		if (!canQuery) {
+			console.log(`Rate limited to 1 / hour. Try again later`)
+			return []
+		}
 
 		try {
 			const { data, error: supabaseError } = await supabase
 				.from("players")
-				.select("*")
-				.order("last_updated", { ascending: false })
+				.select("id, gameID, name, raid, reason")
 
 			if (supabaseError) throw supabaseError
+
 			if (!data) throw new Error("No data received")
 
 			await db.storeAllPlayers(data)
 
-			setPlayers(data)
-			setCacheStatus({
-				isFresh: true,
-				count: data.length,
-				lastUpdated: new Date().toISOString(),
-			})
-
 			return data
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
-			setError(errorMessage)
 			throw err
-		} finally {
-			setLoading(false)
 		}
-	}, [db])
+	}
 
-	const smartRefresh = useCallback(
-		async (force: boolean = false): Promise<PlayerSchema[]> => {
-			if (!force) {
-				const cached = await loadFromCache()
-				if (cached && cached.length > 0 && cacheStatus.isFresh) {
-					return cached
-				}
-			}
-
-			return await refreshFromServer()
-		},
-		[loadFromCache, refreshFromServer, cacheStatus.isFresh],
-	)
-
-	const clearCache = useCallback(async (): Promise<void> => {
-		await db.clearCache()
-		setPlayers([])
-		setCacheStatus({ isFresh: false, count: 0, lastUpdated: null })
-	}, [db])
-
-	useEffect(() => {
-		smartRefresh().catch((err) => {
-			console.error("Initial load failed:", err)
-		})
-	}, [])
+	const clearData = async (): Promise<void> => {
+		await db.clearData()
+		localStorageDB.reset()
+	}
 
 	return {
-		players,
-		loading,
-		error,
-		cacheStatus,
-		refreshFromServer,
-		smartRefresh,
-		clearCache,
-		loadFromCache,
+		loadFromSupabase,
+		clearData,
+		loadFromIndexedDB,
 	}
 }
