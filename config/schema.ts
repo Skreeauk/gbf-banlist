@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const playerIdType = z.string()
+export const playerIdType = z.number()
 export type PlayerIdType = z.infer<typeof playerIdType>
 
 export const playerSchema = z.object({
@@ -9,13 +9,14 @@ export const playerSchema = z.object({
 	name: z.string(),
 	raid: z.string(),
 	reason: z.string().nullable(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
 })
 export type PlayerSchema = z.infer<typeof playerSchema>
 
 export const createPlayerSchema = z.object({
-	gameID: z.number().min(1, { message: "ID is required" }).max(10, { message: "ID is too long" }),
+	gameID: z
+		.number()
+		.min(1, { message: "ID is required" })
+		.max(9999999999, { message: "ID is too long" }),
 	name: z
 		.string()
 		.min(1, { message: "Name is required" })

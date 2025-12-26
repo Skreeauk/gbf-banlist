@@ -51,10 +51,23 @@ export const columns: ColumnDef<PlayerSchema>[] = [
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => navigator.clipboard.writeText(rowData.id)}>
+						<DropdownMenuItem
+							onClick={() => navigator.clipboard.writeText(rowData.gameID.toString())}
+						>
 							Copy ID
 						</DropdownMenuItem>
-						<DropdownMenuItem>Copy Name</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => navigator.clipboard.writeText(rowData.name)}>
+							Copy Name
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild>
+							<a
+								href={`https://game.granbluefantasy.jp/#profile/${rowData.gameID}`}
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								Visit Profile
+							</a>
+						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			)

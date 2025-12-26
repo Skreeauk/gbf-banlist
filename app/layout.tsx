@@ -5,6 +5,7 @@ import { Geist, Geist_Mono, Public_Sans } from "next/font/google"
 import "./globals.css"
 
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 
 const publicSans = Public_Sans({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -37,7 +38,8 @@ export default function RootLayout({
 					enableSystem
 					disableTransitionOnChange
 				>
-					{children}
+					<main>{children}</main>
+					<Toaster richColors />
 				</ThemeProvider>
 			</body>
 		</html>
