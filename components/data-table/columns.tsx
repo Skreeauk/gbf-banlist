@@ -34,7 +34,7 @@ export const columns: ColumnDef<PlayerSchema>[] = [
 	},
 	{
 		accessorKey: "reason",
-		header: ({ column }) => <ColumnHeader column={column} title="Reason" />,
+		header: ({ column }) => <ColumnHeader column={column} title="Reason / Description" />,
 		cell: ({ row }) => <div className="max-w-6xl truncate">{row.getValue("reason")}</div>,
 	},
 	{

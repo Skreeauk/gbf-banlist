@@ -11,6 +11,7 @@ import {
 	DialogDescription,
 	DialogTrigger,
 } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import { Plus } from "lucide-react"
 
@@ -21,10 +22,22 @@ export function InsertButton() {
 	return (
 		<Dialog open={isOpen} onOpenChange={setIsOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="icon" className="size-10 hover:bg-primary/10">
-					<span className="sr-only">Insert</span>
-					<Plus className="size-6" />
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="outline"
+							size="icon"
+							className="size-10 hover:bg-primary/10"
+							onClick={() => setIsOpen(true)}
+						>
+							<span className="sr-only">Insert</span>
+							<Plus className="size-6" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						<p>Ban a player</p>
+					</TooltipContent>
+				</Tooltip>
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
