@@ -74,7 +74,10 @@ export default function DemoPage() {
 	return (
 		<div className="container flex flex-col py-10 gap-10 mx-auto">
 			<div className="flex flex-col gap-5 items-center justify-center mx-5 sm:mx-0">
-				<h1 className="text-5xl font-bold">GBF Ban List</h1>
+				<div className="flex gap-4 items-center justify-center">
+					<h1 className="text-5xl font-bold">GBF Ban List</h1>
+					<img src="/banned.png" alt="GBF Logo" className="size-16" />
+				</div>
 				<div className="flex gap-3 items-center justify-center">
 					<span>Up to</span>
 					<AnimatedNumberBasic number={dbData?.length || 0} />
